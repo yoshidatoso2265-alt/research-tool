@@ -83,8 +83,8 @@ def _to_item(rec: dict) -> Optional[Item]:
     if not title:
         return None
 
-    # URL: rec["url"] があればそれ、なければ listing_id から構築
-    url = rec.get("url")
+    # URL: scrape_context.source.item_url が正規パス
+    url = (rec.get("scrape_context") or {}).get("source", {}).get("item_url") or rec.get("url")
     if not url:
         lid = rec.get("listing_id") or rec.get("id")
         if lid:
@@ -92,32 +92,46 @@ def _to_item(rec: dict) -> Optional[Item]:
     if not url:
         return None
 
-    # 画像: thumbnail を優先、なければ photos の先頭
-    image = rec.get("thumbnail") or rec.get("thumbnail_url")
+    # 画像: media.thumbnail_urls[0] → media.photo_urls[0] の順
+    image = None
+    media = rec.get("media") or {}
+    for key in ("thumbnail_urls", "photo_urls"):
+        urls = media.get(key) or []
+        if urls and isinstance(urls[0], str):
+            image = urls[0]
+            break
     if not image:
-        photos = rec.get("photos") or rec.get("photo_urls") or []
-        if photos:
-            image = photos[0] if isinstance(photos[0], str) else photos[0].get("url")
+        image = rec.get("thumbnail") or rec.get("thumbnail_url")
 
-    cond_id = rec.get("condition_id") or rec.get("itemCondition") or rec.get("item_condition_id")
+    # 価格: 文字列で来るので int 変換
+    price = rec.get("price")
+    if isinstance(price, str):
+        try:
+            price = int(price)
+        except (ValueError, TypeError):
+            price = None
+
+    # 状態: condition_id は文字列 "1"〜"6"
+    cond_raw = rec.get("condition_id") or rec.get("itemCondition") or rec.get("item_condition_id")
     try:
-        cond_id = int(cond_id) if cond_id is not None else None
+        cond_id = int(cond_raw) if cond_raw is not None else None
     except (ValueError, TypeError):
         cond_id = None
 
-    listing_status = rec.get("listing_status") or rec.get("status")
-    in_stock = listing_status in ("on_sale", "selling", None) if listing_status else True
+    # 在庫判定: listing_status は "ITEM_STATUS_ON_SALE" 形式
+    listing_status = (rec.get("listing_status") or rec.get("status") or "").upper()
+    in_stock = "ON_SALE" in listing_status or not listing_status
 
     return Item(
         site=SITE,
         title=title,
-        price=rec.get("price"),
+        price=price,
         condition=CONDITION_MAP.get(cond_id) or "中古",
         image_url=image,
         item_url=url,
         in_stock=in_stock,
-        location=rec.get("shipping_from_area") or rec.get("shippingFromArea"),
-        shipping_method=rec.get("shipping_method") or rec.get("shippingMethod"),
+        location=None,  # Apify Actor はリストページのみ取得、地域情報は無い
+        shipping_method=None,
         description=rec.get("description"),
     )
 
