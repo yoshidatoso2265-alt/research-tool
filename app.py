@@ -44,8 +44,6 @@ from core.aggregator import aggregate, filter_items
 from core.models import Item
 from core.shipping import estimate_all_carriers
 from core.shipping_mercari import (
-    calc_rate as mercari_calc,
-    find_best_options as mercari_find,
     list_methods as mercari_methods,
     get_size_options as mercari_size_options,
     get_method_spec as mercari_spec,
@@ -185,30 +183,6 @@ with st.sidebar:
         opt = _opts[size_idx]
         st.metric(_spec["name"], f"¥{opt['price']:,}", opt["label"])
         st.caption(_spec.get("note", ""))
-
-    with st.expander("💡 全配送方法の早見表（同サイズで比較）"):
-        compare_3sides = st.slider(
-            "比較する3辺合計(cm)", min_value=20, max_value=450, value=80, step=5,
-            key="mercari_compare_3sides",
-        )
-        compare_weight = st.number_input(
-            "重量(kg) ※0なら省略", min_value=0.0, max_value=200.0, value=0.0, step=0.5,
-            key="mercari_compare_weight",
-        )
-        results = mercari_find(
-            sum_3sides_cm=compare_3sides,
-            weight_kg=compare_weight if compare_weight > 0 else None,
-        )
-        if not results:
-            st.info("該当する配送方法なし")
-        else:
-            for r in results:
-                box = f" + 専用箱¥{r['extras']['box_fee']}" if r["extras"].get("box_fee") else ""
-                st.markdown(
-                    f"**¥{r['total']:,}** — {r['group']}／{r['name']} "
-                    f"<small>({r['size_label']}{box})</small>",
-                    unsafe_allow_html=True,
-                )
 
     st.divider()
     st.header("📜 検索履歴")
