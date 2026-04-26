@@ -325,6 +325,17 @@ if run_btn and keyword:
     with st.spinner("検索実行中..."):
         items = run_async_in_thread(aggregate(keyword, exclude_words=exclude_words))
     progress.empty()
+
+    # メルカリ Apify の上限到達を検知して通知
+    try:
+        from scrapers.mercari import last_status as _mercari_status
+        if _mercari_status.get("rate_limited"):
+            st.warning("⚠️ メルカリは今月の Apify 無料枠（$5）を使い切ったため取得できませんでした。来月初に自動的に再開されます。")
+        elif _mercari_status.get("error_message") and not any(it.site == "メルカリ" for it in items):
+            st.info(f"ℹ️ メルカリ取得不可: {_mercari_status['error_message']}")
+    except Exception:
+        pass
+
     if items:
         save_history(keyword, items)
     st.session_state["items"] = items

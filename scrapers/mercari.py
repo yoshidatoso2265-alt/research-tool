@@ -18,6 +18,9 @@ SITE = "メルカリ"
 ACTOR_ID = "fatihtahta/mercari-japan-scraper"
 DEFAULT_LIMIT = 500  # 1検索あたり最大件数（コスト天井 $2 ≈ ¥300 を固定）
 
+# Apify 利用上限・エラー状態をモジュール変数で記録（app.py が読んで UI に表示）
+last_status: dict = {"rate_limited": False, "error_message": None}
+
 # Mercari の condition_id → 表示名
 CONDITION_MAP = {
     1: "新品、未使用",
@@ -30,14 +33,20 @@ CONDITION_MAP = {
 
 
 async def search(keyword: str) -> List[Item]:
+    # 毎回ステータスをリセット
+    last_status["rate_limited"] = False
+    last_status["error_message"] = None
+
     token = get_apify_token()
     if not token:
+        last_status["error_message"] = "APIFY_TOKEN 未設定"
         print(f"[{SITE}] APIFY_TOKEN 未設定のためスキップ")
         return []
 
     try:
         from apify_client import ApifyClientAsync
     except ImportError:
+        last_status["error_message"] = "apify-client がインストールされていません"
         print(f"[{SITE}] apify-client がインストールされていません")
         return []
 
@@ -54,7 +63,15 @@ async def search(keyword: str) -> List[Item]:
             timeout_secs=180,
         )
     except Exception as e:
-        print(f"[{SITE}] Apify run error: {e}")
+        msg = str(e).lower()
+        # Apify Free $5 上限到達の判定 (402 Payment Required, insufficient credit, limit reached 等)
+        if any(k in msg for k in ["402", "payment required", "insufficient", "credit", "limit reached", "quota", "platform limit"]):
+            last_status["rate_limited"] = True
+            last_status["error_message"] = "今月の Apify 無料枠（$5）を使い切りました"
+            print(f"[{SITE}] 月の無料枠到達: {e}")
+        else:
+            last_status["error_message"] = f"Apify エラー: {str(e)[:200]}"
+            print(f"[{SITE}] Apify run error: {e}")
         return []
 
     if not run or not run.get("defaultDatasetId"):
@@ -62,11 +79,16 @@ async def search(keyword: str) -> List[Item]:
         return []
 
     items: List[Item] = []
+    skipped_shops = 0
     try:
         async for rec in client.dataset(run["defaultDatasetId"]).iterate_items():
             # type フィールドがある場合は listing 以外をスキップ
             t = rec.get("type")
             if t and t != "listing":
+                continue
+            # Mercari Shops（C2B: ITEM_TYPE_BEYOND）は除外、C2C（ITEM_TYPE_MERCARI）のみ残す
+            if _is_mercari_shop(rec):
+                skipped_shops += 1
                 continue
             it = _to_item(rec)
             if it:
@@ -74,8 +96,21 @@ async def search(keyword: str) -> List[Item]:
     except Exception as e:
         print(f"[{SITE}] dataset iterate error: {e}")
 
+    if skipped_shops:
+        print(f"[{SITE}] Mercari Shops を {skipped_shops} 件除外")
     print(f"[{SITE}] Apify から {len(items)} 件取得")
     return items
+
+
+def _is_mercari_shop(rec: dict) -> bool:
+    """Mercari Shops（C2B 出品）の判定。listing_type または URL で判別。"""
+    listing_type = (rec.get("listing_type") or "").upper()
+    if "BEYOND" in listing_type:
+        return True
+    url = (rec.get("scrape_context") or {}).get("source", {}).get("item_url") or ""
+    if "/shops/" in url or "/en/shops/" in url:
+        return True
+    return False
 
 
 def _to_item(rec: dict) -> Optional[Item]:
