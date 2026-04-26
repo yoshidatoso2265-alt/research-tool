@@ -1,0 +1,22 @@
+[Unit]
+Description=Research Tool - 中古10サイト横断リサーチ Web App
+After=network.target
+
+[Service]
+Type=simple
+User=research
+Group=research
+WorkingDirectory=/opt/research-tool
+Environment="PATH=/opt/research-tool/.venv/bin"
+Environment="STREAMLIT_SERVER_HEADLESS=true"
+Environment="STREAMLIT_SERVER_PORT=8501"
+Environment="STREAMLIT_SERVER_ADDRESS=127.0.0.1"
+Environment="STREAMLIT_BROWSER_GATHER_USAGE_STATS=false"
+ExecStart=/opt/research-tool/.venv/bin/streamlit run /opt/research-tool/app.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -46,7 +46,12 @@ from core.shipping import estimate_all_carriers
 from core.size_extract import extract_size_info, extract_prefecture, PREFECTURES
 from core.history import save_history, list_history, load_history
 
-st.set_page_config(page_title="中古10サイト横断リサーチ", layout="wide", page_icon="🔎")
+_ICON_PATH = Path(__file__).parent / "77fb3257-fbd1-42b8-adf9-94b19e8812fe.png"
+st.set_page_config(
+    page_title="中古10サイト横断リサーチ",
+    layout="wide",
+    page_icon=str(_ICON_PATH) if _ICON_PATH.exists() else "🔎",
+)
 
 # モバイル対応CSS: 狭い画面で columns を自動的に縦積みにし、画像と文字を読みやすく
 st.markdown("""
