@@ -153,11 +153,13 @@ with st.sidebar:
     st.caption("配送方法とサイズを選ぶと料金が表示されます（公式・全国一律）")
 
     _method_list = mercari_methods()
-    _method_labels = {m["key"]: f"[{m['group']}] {m['label']}" for m in _method_list}
+    _method_labels = {m["key"]: m["label"] for m in _method_list}
+    _method_groups = {m["key"]: m["group"] for m in _method_list}
     method_key = st.selectbox(
         "配送方法", options=[m["key"] for m in _method_list],
         format_func=lambda k: _method_labels[k], key="mercari_method_key",
     )
+    st.caption(f"📂 {_method_groups[method_key]}")
 
     _opts = mercari_size_options(method_key)
     _spec = mercari_spec(method_key)
