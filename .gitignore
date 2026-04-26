@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# 検索履歴・結果（個人データなのでリポに含めない）
+results/
+history/
+
+# Playwright cache
+.playwright-mcp/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# 一時ファイル
+*.log
+*.tmp
+
+# サーバ認証情報（万一置いたとしても push しない）
+server_info.txt
+.env
+*.pem
+*.key
+id_rsa*
