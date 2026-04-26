@@ -48,6 +48,69 @@ def _round_up_to_size(value: int, sizes: List[int]) -> Optional[int]:
     return None
 
 
+def get_method_spec(method_key: str) -> dict:
+    """method_key から仕様 dict を返す（サイズ一覧UIなどで使う）"""
+    d = _load()
+    if method_key == "tanomeru":
+        return d["tanomeru"]
+    grp, sub = method_key.split(".", 1)
+    return d[grp][sub]
+
+
+def get_size_options(method_key: str) -> List[Dict]:
+    """配送方法ごとのサイズ選択肢を返す。
+    Returns: [{size: int|str, price: int, label: str}, ...]
+    定額方式の方法は1件のみ（規格をlabelに）。
+    """
+    spec = get_method_spec(method_key)
+    if "sizes" in spec:
+        weights = spec.get("weights")
+        out = []
+        for i, sz in enumerate(spec["sizes"]):
+            wt = f" / {weights[i]}kgまで" if weights else ""
+            out.append({
+                "size": sz,
+                "price": spec["rates"][i],
+                "label": f"{sz}サイズ（3辺~{sz}cm{wt}）",
+            })
+        return out
+    # 定額（ネコポス、ゆうパケットなど）
+    label_parts = []
+    if spec.get("max_3sides_cm"):
+        label_parts.append(f"3辺~{spec['max_3sides_cm']}cm")
+    if spec.get("max_long_cm"):
+        label_parts.append(f"長辺~{spec['max_long_cm']}cm")
+    if spec.get("max_thickness_cm"):
+        label_parts.append(f"厚~{spec['max_thickness_cm']}cm")
+    if spec.get("max_weight_kg"):
+        label_parts.append(f"{spec['max_weight_kg']}kg以下")
+    if spec.get("size_box"):
+        label_parts.append(f"専用箱 {spec['size_box']}")
+    if spec.get("size_envelope"):
+        label_parts.append(f"専用封筒 {spec['size_envelope']}")
+    return [{
+        "size": "regulation",
+        "price": spec["price"],
+        "label": " / ".join(label_parts) if label_parts else "規格内",
+    }]
+
+
+def calc_by_size(method_key: str, size: int) -> Optional[Dict]:
+    """サイズコード（60/80/100…）を直接指定して料金を返す（UI用）"""
+    spec = get_method_spec(method_key)
+    if "sizes" not in spec:
+        return None
+    if size not in spec["sizes"]:
+        return None
+    idx = spec["sizes"].index(size)
+    return {
+        "name": spec["name"],
+        "price": spec["rates"][idx],
+        "size_label": f"{size}サイズ",
+        "weight_limit_kg": (spec.get("weights") or [None])[idx] if spec.get("weights") else spec.get("max_weight_kg"),
+    }
+
+
 def calc_rate(method_key: str, *, sum_3sides_cm: Optional[int] = None,
               long_cm: Optional[int] = None, thickness_cm: Optional[float] = None,
               weight_kg: Optional[float] = None) -> Dict:
