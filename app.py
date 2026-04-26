@@ -43,6 +43,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from core.aggregator import aggregate, filter_items
 from core.models import Item
 from core.shipping import estimate_all_carriers
+from core.shipping_mercari import calc_rate as mercari_calc, find_best_options as mercari_find, list_methods as mercari_methods
 from core.size_extract import extract_size_info, extract_prefecture, PREFECTURES
 from core.history import save_history, list_history, load_history
 
@@ -140,6 +141,70 @@ with st.sidebar:
                     st.metric(carrier, f"¥{info['price']:,}", info["label"])
                 else:
                     st.markdown(f"**{carrier}**: {info.get('note', '不可')}")
+
+    st.divider()
+    st.header("📦 メルカリ便 送料計算")
+    st.caption("メルカリで再出品する想定。全国一律料金（公式データ）")
+
+    mercari_mode = st.radio(
+        "計算モード", ["おまかせ（安い順）", "配送方法を指定"],
+        horizontal=True, key="mercari_mode",
+    )
+    mercari_3sides = st.slider(
+        "3辺合計(cm)", min_value=20, max_value=450, value=calc_3sides, step=5,
+        key="mercari_3sides",
+    )
+    mercari_long = st.number_input(
+        "長辺(cm) ※小型のみ判定に使用", min_value=0, max_value=200, value=0, step=1,
+        help="0なら長辺チェックを省略",
+    )
+    mercari_thick = st.number_input(
+        "厚さ(cm) ※小型のみ", min_value=0.0, max_value=50.0, value=0.0, step=0.5,
+    )
+    mercari_weight = st.number_input(
+        "重量(kg)", min_value=0.0, max_value=200.0, value=0.0, step=0.5,
+        help="0なら重量チェックを省略",
+    )
+
+    _l = mercari_long if mercari_long > 0 else None
+    _t = mercari_thick if mercari_thick > 0 else None
+    _w = mercari_weight if mercari_weight > 0 else None
+
+    if mercari_mode == "おまかせ（安い順）":
+        results = mercari_find(
+            sum_3sides_cm=mercari_3sides, long_cm=_l, thickness_cm=_t, weight_kg=_w,
+        )
+        if not results:
+            st.warning("条件に合う配送方法がありません（サイズ/重量を見直してください）")
+        else:
+            st.success(f"✅ {len(results)}件ヒット — 最安: **{results[0]['name']} ¥{results[0]['total']:,}**")
+            for r in results:
+                box = f"（+専用箱 ¥{r['extras']['box_fee']}）" if r["extras"].get("box_fee") else ""
+                with st.container(border=True):
+                    st.markdown(
+                        f"**{r['group']} / {r['name']}** — ¥{r['total']:,} {box}\n\n"
+                        f"<small>{r['size_label']}</small>",
+                        unsafe_allow_html=True,
+                    )
+    else:
+        method_list = mercari_methods()
+        method_labels = {m["key"]: f"[{m['group']}] {m['label']}" for m in method_list}
+        method_key = st.selectbox(
+            "配送方法", options=[m["key"] for m in method_list],
+            format_func=lambda k: method_labels[k], key="mercari_method_key",
+        )
+        r = mercari_calc(
+            method_key, sum_3sides_cm=mercari_3sides, long_cm=_l,
+            thickness_cm=_t, weight_kg=_w,
+        )
+        box_fee = r["extras"].get("box_fee") or 0
+        if r["ok"] and r["price"] is not None:
+            total = r["price"] + box_fee
+            st.metric(r["name"], f"¥{total:,}", r["size_label"])
+            if box_fee:
+                st.caption(f"内訳: 送料 ¥{r['price']:,} + 専用箱 ¥{box_fee}")
+        else:
+            st.error(f"❌ {r['name']}: {' / '.join(r['reasons']) if r['reasons'] else '計算不可'}")
 
     st.divider()
     st.header("📜 検索履歴")

@@ -1,0 +1,89 @@
+{
+  "_source": "https://help.jp.mercari.com/guide/articles/652/ ほか各方法のページ",
+  "_updated": "2026-04-26",
+  "_note": "メルカリ便は全国一律料金（出発地・到着地に関わらず同額）",
+  "rakuraku": {
+    "_carrier": "らくらくメルカリ便（ヤマト運輸）",
+    "nekopos": {
+      "name": "ネコポス",
+      "price": 210,
+      "max_3sides_cm": 60,
+      "max_long_cm": 34,
+      "max_thickness_cm": 3,
+      "max_weight_kg": 1.0,
+      "note": "ポスト投函・追跡あり"
+    },
+    "compact": {
+      "name": "宅急便コンパクト",
+      "price": 450,
+      "box_fee": 70,
+      "size_box": "25×20×5cm",
+      "size_thin_box": "34×24.8cm（厚さ5cmまで）",
+      "max_3sides_cm": 64,
+      "max_thickness_cm": 5,
+      "max_weight_kg": null,
+      "note": "専用BOX 70円別途。標準BOX(25×20×5) or 薄型BOX(34×24.8×5)"
+    },
+    "takkyubin": {
+      "name": "宅急便",
+      "sizes": [60, 80, 100, 120, 140, 160, 180, 200],
+      "rates": [750, 850, 1050, 1200, 1450, 1700, 2100, 2500],
+      "weights": [2, 5, 10, 15, 20, 25, 30, 30],
+      "note": "サイズ＝3辺合計cm。重量上限あり"
+    }
+  },
+  "yuyu": {
+    "_carrier": "ゆうゆうメルカリ便（日本郵便）",
+    "yu_packet": {
+      "name": "ゆうパケット",
+      "price": 230,
+      "max_3sides_cm": 60,
+      "max_long_cm": 34,
+      "max_thickness_cm": 3,
+      "max_weight_kg": 1.0,
+      "note": "ポスト投函可"
+    },
+    "yu_packet_post": {
+      "name": "ゆうパケットポスト",
+      "price": 215,
+      "max_3sides_cm": 60,
+      "max_long_cm": 34,
+      "max_thickness_cm": 3,
+      "max_weight_kg": 2.0,
+      "note": "専用箱 or 発送用シール（別売・店舗で価格差）"
+    },
+    "yu_packet_post_mini": {
+      "name": "ゆうパケットポストmini",
+      "price": 160,
+      "size_envelope": "21.6×17.8cm",
+      "max_3sides_cm": 43,
+      "max_thickness_cm": 3,
+      "max_weight_kg": 2.0,
+      "note": "専用封筒（別売・店舗で価格差）"
+    },
+    "yu_packet_plus": {
+      "name": "ゆうパケットプラス",
+      "price": 455,
+      "box_fee": 65,
+      "size_box": "24×17×7cm",
+      "max_3sides_cm": 48,
+      "max_thickness_cm": 7,
+      "max_weight_kg": 2.0,
+      "note": "専用箱 65円別途"
+    },
+    "yu_pack": {
+      "name": "ゆうパック",
+      "sizes": [60, 80, 100, 120, 140, 160, 170],
+      "rates": [750, 870, 1070, 1200, 1450, 1700, 1900],
+      "max_weight_kg": 25,
+      "note": "サイズ＝3辺合計cm、25kgまで"
+    }
+  },
+  "tanomeru": {
+    "_carrier": "梱包・発送たのメル便（ヤマトホームコンビニエンス）",
+    "sizes": [80, 120, 160, 200, 250, 300, 350, 400, 450],
+    "rates": [1700, 2400, 3400, 5000, 8600, 12000, 18500, 25400, 33000],
+    "max_weight_kg": 150,
+    "note": "梱包・搬出・搬入までプロ対応。実重量100kg超は追加料金"
+  }
+}
