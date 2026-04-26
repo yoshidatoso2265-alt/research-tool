@@ -1,5 +1,39 @@
 # デプロイ最終ステップ（ユーザー実行）
 
+## 🔑 メルカリ Apify token 設定（v2 で追加）
+
+メルカリは bot 検知が強く、Apify Actor 経由で取得します。token なしだとメルカリだけ 0件になりますが、他サイトは正常動作します。
+
+### Apify アカウント作成 + token 取得
+1. https://apify.com/sign-up で無料アカウント作成
+2. ログイン → https://console.apify.com/settings/integrations
+3. "Personal API tokens" の token をコピー（`apify_api_xxx...` 形式）
+
+### ローカル設定
+`.streamlit/secrets.toml.example` を `.streamlit/secrets.toml` にコピーし、`APIFY_TOKEN` を書き換える。`.gitignore` 済なので git には含まれません。
+
+### サーバー設定（Xserver）
+```bash
+ssh -i ~/.ssh/irodori.pem root@162.43.41.97
+sudo systemctl edit research-tool
+# 開いたエディタに以下を貼り付け:
+[Service]
+Environment="APIFY_TOKEN=apify_api_xxxxxxxxxxxxxxxxxx"
+
+# 保存して閉じてから:
+sudo systemctl daemon-reload
+sudo systemctl restart research-tool
+sudo systemctl status research-tool --no-pager | head -10
+```
+
+### コスト目安
+- 採用 Actor: `fatihtahta/mercari-japan-scraper`（$3.99/1000件）
+- Free $5/月 = 約1,250件まで毎月無料
+- 1検索100件取得で約¥60、月12検索まで完全無料
+- DEFAULT_LIMIT=500 でコスト天井 $2 ≈ ¥300/検索 に固定済
+
+---
+
 ## ✅ 完了済み（Claude側）
 
 1. **GitHub リポジトリ作成**: https://github.com/yoshidatoso2265-alt/research-tool （プライベート）

@@ -13,6 +13,9 @@ env/
 # Streamlit
 .streamlit/secrets.toml
 
+# Claude Code ローカル設定（プロジェクト固有・個人マシン依存）
+.claude/
+
 # 検索履歴・結果（個人データなのでリポに含めない）
 results/
 history/

@@ -82,7 +82,7 @@ with st.sidebar:
     keyword = st.text_input("型番", value="Panasonic NR-B18C2", placeholder="例: PSP-3000")
     exclude_text = st.text_area(
         "除外ワード（カンマ・改行で区切り）",
-        value="ジャンク\n通電確認\nリモコン\n説明書\n部品\nパーツ",
+        value="ジャンク",
         height=120,
         help="この単語が商品名/説明に含まれる商品は除外。ひらがな・カタカナ・大小文字は同一視（例:「ジャンク」で「じゃんく」「ジャンク品」もヒット）",
     )
@@ -95,7 +95,6 @@ with st.sidebar:
         "販売価格 (¥)", min_value=0, value=0, step=500,
         help="入力すると各商品カードに「利益見込み」がリアルタイム表示されます",
     )
-    fee_rate = st.slider("販売手数料率 (%)", 0, 30, 10, help="メルカリ等の販売プラットフォーム手数料を差し引く場合") / 100
 
     st.divider()
     st.header("📐 商品サイズ補完")
@@ -308,13 +307,12 @@ def render_items(items, keyword: str):
                 st.markdown(f"## ¥{it.price:,}" if it.price else "## 価格不明")
                 # 利益試算
                 if sell_price > 0 and it.price:
-                    fee = int(sell_price * fee_rate)
-                    profit = sell_price - it.price - fee
+                    profit = sell_price - it.price
                     profit_pct = (profit / sell_price * 100) if sell_price else 0
                     color = "🟢" if profit > 0 else "🔴"
                     st.markdown(
                         f"{color} **利益**: ¥{profit:,} ({profit_pct:.0f}%)\n\n"
-                        f"<small>売価¥{sell_price:,} − 仕入¥{it.price:,} − 手数料¥{fee:,}</small>",
+                        f"<small>売価¥{sell_price:,} − 仕入¥{it.price:,}</small>",
                         unsafe_allow_html=True,
                     )
                 st.markdown(f"[🛒 商品ページを開く]({it.item_url})")
