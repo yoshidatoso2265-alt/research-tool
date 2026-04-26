@@ -43,12 +43,12 @@ async def search(keyword: str) -> List[Item]:
 
     client = ApifyClientAsync(token)
     try:
+        # 検索URLベースで投入（keywordフィールドより確実）
+        from urllib.parse import quote as urlquote
+        search_url = f"https://jp.mercari.com/search?keyword={urlquote(keyword)}&status=on_sale&sort=price&order=asc"
         run = await client.actor(ACTOR_ID).call(
             run_input={
-                "keyword": keyword,
-                "status": "on_sale",
-                "sort": "price",
-                "order": "asc",
+                "startUrls": [{"url": search_url}],
                 "limit": DEFAULT_LIMIT,
             },
             timeout_secs=180,
