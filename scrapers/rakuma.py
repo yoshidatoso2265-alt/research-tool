@@ -5,13 +5,13 @@ from urllib.parse import quote
 from playwright.async_api import async_playwright, BrowserContext
 
 from core.models import Item
+from core.browser import launch_stealth, apply_stealth
 
 SITE = "ラクマ"
 LIST_BASE = "https://fril.jp"
 ITEM_BASE = "https://item.fril.jp"
-MAX_DETAIL_FETCH = 500  # 実質無制限
 DETAIL_PARALLEL = 4
-MAX_LIST_PAGES = 5
+HARD_PAGE_LIMIT = 50  # 安全装置
 
 
 async def search(keyword: str) -> List[Item]:
@@ -19,15 +19,19 @@ async def search(keyword: str) -> List[Item]:
     items: List[Item] = []
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(locale="ja-JP")
+            browser, context = await launch_stealth(p)
             page = await context.new_page()
+            await apply_stealth(page)
             preliminary = []
             seen = set()
-            for page_num in range(1, MAX_LIST_PAGES + 1):
+            for page_num in range(1, HARD_PAGE_LIMIT + 1):
                 page_url = url + (f"&page={page_num}" if page_num > 1 else "")
                 await page.goto(page_url, wait_until="domcontentloaded", timeout=30000)
-                await page.wait_for_timeout(5000)
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=12000)
+                except Exception:
+                    pass
+                await page.wait_for_timeout(1500)
                 cards = await page.query_selector_all(".item")
                 if not cards:
                     break
@@ -52,11 +56,9 @@ async def search(keyword: str) -> List[Item]:
                         price = _extract_price(txt)
                         preliminary.append({"url": href, "image": image, "price": price})
                         page_added += 1
-                        if len(preliminary) >= MAX_DETAIL_FETCH:
-                            break
                     except Exception:
                         continue
-                if page_added == 0 or len(preliminary) >= MAX_DETAIL_FETCH:
+                if page_added == 0:
                     break
             await page.close()
             print(f"[{SITE}] 一覧から{len(preliminary)}件のURLを取得 → 詳細ページ取得開始")
@@ -82,8 +84,13 @@ async def _fetch_detail(context: BrowserContext, prelim: dict):
     url = prelim["url"]
     page = await context.new_page()
     try:
+        await apply_stealth(page)
         await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-        await page.wait_for_timeout(2500)
+        try:
+            await page.wait_for_load_state("networkidle", timeout=10000)
+        except Exception:
+            pass
+        await page.wait_for_timeout(1500)
 
         title = ""
         og = await page.query_selector('meta[property="og:title"]')

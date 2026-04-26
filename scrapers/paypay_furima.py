@@ -5,45 +5,67 @@ from urllib.parse import quote
 from playwright.async_api import async_playwright, BrowserContext
 
 from core.models import Item
+from core.browser import launch_stealth, apply_stealth
 
 SITE = "PayPayフリマ"
 BASE = "https://paypayfleamarket.yahoo.co.jp"
-MAX_DETAIL_FETCH = 500  # 実質無制限
 DETAIL_PARALLEL = 4
+HARD_PAGE_LIMIT = 50  # 安全装置
 
 
 async def search(keyword: str) -> List[Item]:
-    url = f"{BASE}/search/{quote(keyword)}?status=open&sort=ccon&order=asc"
+    base_url = f"{BASE}/search/{quote(keyword)}?status=open&sort=ccon&order=asc"
     items: List[Item] = []
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(locale="ja-JP")
+            browser, context = await launch_stealth(p)
 
             page = await context.new_page()
-            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_timeout(4000)
-
-            cards = await page.query_selector_all("a[href*='/item/']")
+            await apply_stealth(page)
             seen = set()
             preliminary = []
-            for c in cards:
-                href = await c.get_attribute("href")
-                if not href or "/item/" not in href:
-                    continue
-                if not href.startswith("http"):
-                    href = BASE + href
-                if href in seen:
-                    continue
-                seen.add(href)
-                img_el = await c.query_selector("img")
-                image = await img_el.get_attribute("src") if img_el else None
-                full_text = await c.inner_text() if c else ""
-                price = _extract_price(full_text)
-                preliminary.append({"url": href, "image": image, "price": price})
-                if len(preliminary) >= MAX_DETAIL_FETCH:
+
+            for page_num in range(1, HARD_PAGE_LIMIT + 1):
+                page_url = base_url + (f"&page={page_num}" if page_num > 1 else "")
+                await page.goto(page_url, wait_until="domcontentloaded", timeout=30000)
+                try:
+                    await page.mouse.move(400, 300)
+                    await page.mouse.wheel(0, 600)
+                except Exception:
+                    pass
+                await page.wait_for_timeout(1500)
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=12000)
+                except Exception:
+                    pass
+                try:
+                    await page.wait_for_selector("a[href*='/item/']", timeout=8000)
+                except Exception:
+                    pass
+
+                cards = await page.query_selector_all("a[href*='/item/']")
+                if not cards:
+                    break
+                page_added = 0
+                for c in cards:
+                    href = await c.get_attribute("href")
+                    if not href or "/item/" not in href:
+                        continue
+                    if not href.startswith("http"):
+                        href = BASE + href
+                    if href in seen:
+                        continue
+                    seen.add(href)
+                    img_el = await c.query_selector("img")
+                    image = await img_el.get_attribute("src") if img_el else None
+                    full_text = await c.inner_text() if c else ""
+                    price = _extract_price(full_text)
+                    preliminary.append({"url": href, "image": image, "price": price})
+                    page_added += 1
+                if page_added == 0:
                     break
             await page.close()
+            print(f"[{SITE}] 一覧から{len(preliminary)}件のURLを取得 → 詳細ページ取得開始")
 
             sem = asyncio.Semaphore(DETAIL_PARALLEL)
 
@@ -69,18 +91,21 @@ async def _fetch_detail_page(context: BrowserContext, prelim: dict):
     url = prelim["url"]
     page = await context.new_page()
     try:
+        await apply_stealth(page)
         await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        try:
+            await page.wait_for_load_state("networkidle", timeout=10000)
+        except Exception:
+            pass
         try:
             await page.wait_for_selector("h1", timeout=8000)
         except Exception:
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(2000)
 
-        # og:title が最も確実 (h1は描画タイミング次第で空のことがある)
         title = ""
         og = await page.query_selector('meta[property="og:title"]')
         if og:
             t = (await og.get_attribute("content")) or ""
-            # "...｜Yahoo!フリマ（旧PayPayフリマ）" のサフィックスを削除
             title = re.sub(r"[\s|｜]+Yahoo!フリマ.*$", "", t).strip()
         if not title:
             h1 = await page.query_selector("h1")
@@ -92,7 +117,6 @@ async def _fetch_detail_page(context: BrowserContext, prelim: dict):
 
         html = await page.content()
 
-        # 発送元の地域・商品の状態 はテーブル構造、HTMLに含まれているのでregexで抽出
         location = None
         m = re.search(r'発送元の地域</span></th>\s*<td[^>]*>\s*<span[^>]*>([^<]+)</span>', html)
         if m:
@@ -115,7 +139,6 @@ async def _fetch_detail_page(context: BrowserContext, prelim: dict):
             else:
                 shipping_method = payer
 
-        # 説明文 (og:description)
         desc = None
         og_desc = await page.query_selector('meta[property="og:description"]')
         if og_desc:

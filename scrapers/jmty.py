@@ -15,9 +15,10 @@ async def search(keyword: str) -> List[Item]:
     items: List[Item] = []
     try:
         async with make_client() as client:
-            # 複数ページを取得（page 1〜3 で最大150件相当）
+            # 全ページ走査（最終ページに到達するまで）
             all_lis = []
-            for page_num in range(1, 4):
+            HARD_PAGE_LIMIT = 50
+            for page_num in range(1, HARD_PAGE_LIMIT + 1):
                 page_url = f"{BASE}/all/sale?keyword={quote(keyword)}&page={page_num}"
                 try:
                     r = await client.get(page_url)

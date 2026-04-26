@@ -5,12 +5,19 @@ from urllib.parse import quote
 from playwright.async_api import async_playwright, BrowserContext
 
 from core.models import Item
+from core.browser import launch_stealth, apply_stealth
 
 SITE = "メルカリ"
 BASE = "https://jp.mercari.com"
-MAX_DETAIL_FETCH = 500  # 実質無制限
 DETAIL_PARALLEL = 4
-MAX_LIST_PAGES = 5
+HARD_PAGE_LIMIT = 50  # 安全装置（事故時の暴走防止のみ。50ページ=約1500件）
+
+# 注: メルカリは Akamai/独自 bot 検知が強く、無料の playwright-stealth では
+# クライアント側 fetch がサイレントブロックされ skeleton で固まることが多い。
+# 確実に取りたい場合の選択肢:
+#   1. Apify Mercari Scraper を使う（Free tier $5/月以内で運用可能）
+#   2. ユーザーがログイン済みの実 Chrome profile を流用する
+#      (browser launch に user_data_dir を指定 + headed mode)
 
 
 async def search(keyword: str) -> List[Item]:
@@ -18,37 +25,49 @@ async def search(keyword: str) -> List[Item]:
     items: List[Item] = []
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0.0.0 Safari/537.36"
-                ),
-                locale="ja-JP",
-            )
+            browser, context = await launch_stealth(p)
 
-            # 1. 一覧ページからURL収集（複数ページ対応）
+            # 1. 一覧ページからURL収集（全ページ走査・上限なし）
             page = await context.new_page()
+            await apply_stealth(page)
             seen_urls = set()
             preliminary = []
 
-            for page_num in range(1, MAX_LIST_PAGES + 1):
+            for page_num in range(1, HARD_PAGE_LIMIT + 1):
                 page_url = url + (f"&page_token=v1:{page_num}" if page_num > 1 else "")
                 await page.goto(page_url, wait_until="domcontentloaded", timeout=30000)
-                await page.wait_for_timeout(4000)
+                # 人間的な操作で API fetch を発火させる
                 try:
-                    await page.wait_for_selector("li[data-testid='item-cell']", timeout=10000)
+                    await page.mouse.move(400, 300)
+                    await page.mouse.wheel(0, 400)
+                except Exception:
+                    pass
+                await page.wait_for_timeout(2000)
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=20000)
+                except Exception:
+                    pass
+                try:
+                    await page.wait_for_selector(
+                        "li[data-testid='item-cell'], a[data-testid='thumbnail-link']",
+                        timeout=10000,
+                    )
                 except Exception:
                     pass
 
                 cards = await page.query_selector_all("li[data-testid='item-cell']")
                 if not cards:
+                    # フォールバック: 旧 testid が外れた場合
+                    cards = await page.query_selector_all(
+                        "a[data-testid='thumbnail-link'], a[href*='/item/m']"
+                    )
+                if not cards:
                     break
                 page_added = 0
                 for c in cards:
                     try:
-                        link_el = await c.query_selector("a")
+                        # cards 自体が <a> の場合と、内側に <a> を持つ <li> の場合の両対応
+                        link_el = c if (await c.evaluate("e => e.tagName")) == "A" else await c.query_selector("a")
                         if not link_el:
                             continue
                         href = await link_el.get_attribute("href")
@@ -63,16 +82,14 @@ async def search(keyword: str) -> List[Item]:
                         seen_urls.add(href)
                         img_el = await c.query_selector("img")
                         image = await img_el.get_attribute("src") if img_el else None
-                        price_el = await c.query_selector("[class*='merPrice'], [class*='price']")
+                        price_el = await c.query_selector("[class*='merPrice'], [class*='price'], [data-testid='price']")
                         price_text = await price_el.inner_text() if price_el else ""
                         price = _extract_price(price_text)
                         preliminary.append({"url": href, "image": image, "price": price})
                         page_added += 1
-                        if len(preliminary) >= MAX_DETAIL_FETCH:
-                            break
                     except Exception:
                         continue
-                if page_added == 0 or len(preliminary) >= MAX_DETAIL_FETCH:
+                if page_added == 0:
                     break
             await page.close()
             print(f"[{SITE}] 一覧から{len(preliminary)}件のURLを取得 → 詳細ページ取得開始")
