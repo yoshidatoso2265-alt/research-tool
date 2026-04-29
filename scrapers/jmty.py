@@ -33,6 +33,8 @@ async def search(keyword: str) -> List[Item]:
                 except Exception:
                     break
 
+            # 一覧から候補を抽出
+            candidates = []
             for li in all_lis:
                 title_a = li.select_one("div.p-item-title a")
                 price_el = li.select_one("div.p-item-most-important")
@@ -45,27 +47,46 @@ async def search(keyword: str) -> List[Item]:
                 item_url = urljoin(BASE, href)
                 price = _extract_price(price_el.get_text() if price_el else "")
                 image_url = img_el.get("src") if img_el else None
-                # ALTから完全タイトルが取れる場合も
                 if img_el and img_el.get("alt"):
                     title = img_el.get("alt") if len(img_el.get("alt", "")) > len(title) else title
                 desc = desc_el.get_text(" ", strip=True) if desc_el else None
-                # 「お問い合わせ受付は終了しました」の商品はスキップ
+                # 一覧テキストで先にチェック（表示されている場合）
                 full_text = li.get_text(" ", strip=True)
                 if "お問い合わせ受付は終了" in full_text:
                     continue
-                # 都道府県・市区町村
                 loc_parts = []
                 for sec in li.select("div.p-item-secondary-important a, div.p-item-supplementary-info a"):
                     t = sec.get_text(strip=True)
                     if t and t not in loc_parts and len(t) <= 20:
                         loc_parts.append(t)
                 location = " / ".join(loc_parts[:3]) if loc_parts else None
-                items.append(Item(
+                candidates.append((title, price, image_url, item_url, desc, location))
+
+            # 詳細ページを並列取得して「お問い合わせ受付は終了」を除外
+            async def _check_detail(client, candidate):
+                title, price, image_url, item_url, desc, location = candidate
+                try:
+                    r = await client.get(item_url)
+                    r.raise_for_status()
+                    if "お問い合わせ受付は終了" in r.text:
+                        return None
+                except Exception:
+                    pass  # 取得失敗時は除外しない
+                return Item(
                     site=SITE, title=title, price=price,
                     condition="中古", image_url=image_url,
                     item_url=item_url, in_stock=price is not None,
                     description=desc, location=location,
-                ))
+                )
+
+            # 同時接続数を制限して詳細ページをチェック
+            sem = asyncio.Semaphore(5)
+            async def _check_with_sem(client, c):
+                async with sem:
+                    return await _check_detail(client, c)
+
+            results = await asyncio.gather(*[_check_with_sem(client, c) for c in candidates])
+            items = [it for it in results if it is not None]
     except Exception as e:
         print(f"[{SITE}] error: {e}")
     return items
