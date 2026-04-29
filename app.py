@@ -92,12 +92,23 @@ with st.sidebar:
     keyword = st.text_input("型番", value="Panasonic NR-B18C2", placeholder="例: PSP-3000")
 
     with st.expander("🌐 検索サイト選択", expanded=False):
-        _sel_all = st.checkbox("全選択", value=True, key="site_all")
+        # 初期化: 各サイトのチェック状態がなければ全ONで初期化
+        for s in ALL_SITES:
+            if f"site_{s}" not in st.session_state:
+                st.session_state[f"site_{s}"] = True
+
+        def _toggle_all():
+            # 現在全てONなら全OFF、それ以外は全ON
+            all_on = all(st.session_state.get(f"site_{s}", True) for s in ALL_SITES)
+            for s in ALL_SITES:
+                st.session_state[f"site_{s}"] = not all_on
+
+        st.button("全選択 / 全解除", on_click=_toggle_all, use_container_width=True)
         selected_sites = []
         cols_sites = st.columns(2)
         for i, site_name in enumerate(ALL_SITES):
             with cols_sites[i % 2]:
-                checked = st.checkbox(site_name, value=_sel_all, key=f"site_{site_name}")
+                checked = st.checkbox(site_name, key=f"site_{site_name}")
                 if checked:
                     selected_sites.append(site_name)
 
