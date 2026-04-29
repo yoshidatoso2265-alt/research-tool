@@ -77,14 +77,30 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🔎 中古10サイト横断リサーチ")
-st.caption("型番を入れるとヤフオク・メルカリ・ジモティー他10サイトを横断検索 → 安い順に表示")
+st.title("🔎 中古サイト横断リサーチ")
+st.caption("型番を入れるとヤフオク・メルカリ・ジモティー他を横断検索 → 安い順に表示")
 
 SHIPPING_SIZES = [60, 80, 100, 120, 140, 160, 170, 180, 200]
+
+ALL_SITES = [
+    "ヤフオク", "ハードオフ", "ジモティー", "セカンドストリート",
+    "駿河屋", "ブックオフ", "メルカリ", "ラクマ", "PayPayフリマ",
+]
 
 with st.sidebar:
     st.header("🔍 検索")
     keyword = st.text_input("型番", value="Panasonic NR-B18C2", placeholder="例: PSP-3000")
+
+    with st.expander("🌐 検索サイト選択", expanded=False):
+        _sel_all = st.checkbox("全選択", value=True, key="site_all")
+        selected_sites = []
+        cols_sites = st.columns(2)
+        for i, site_name in enumerate(ALL_SITES):
+            with cols_sites[i % 2]:
+                checked = st.checkbox(site_name, value=_sel_all, key=f"site_{site_name}")
+                if checked:
+                    selected_sites.append(site_name)
+
     exclude_text = st.text_area(
         "除外ワード（カンマ・改行で区切り）",
         value="ジャンク",
@@ -92,7 +108,8 @@ with st.sidebar:
         help="この単語が商品名/説明に含まれる商品は除外。ひらがな・カタカナ・大小文字は同一視（例:「ジャンク」で「じゃんく」「ジャンク品」もヒット）",
     )
     exclude_words = [w.strip() for w in exclude_text.replace(",", "\n").splitlines() if w.strip()]
-    run_btn = st.button("🔍 検索する（10サイト横断）", type="primary", use_container_width=True)
+    _site_count = len(selected_sites) if selected_sites else len(ALL_SITES)
+    run_btn = st.button(f"🔍 検索する（{_site_count}サイト横断）", type="primary", use_container_width=True)
 
     st.divider()
     st.header("💰 販売価格 → 利益試算")
@@ -364,9 +381,10 @@ def render_items(items, keyword: str):
 # === メイン処理 ===
 if run_btn and keyword:
     progress = st.empty()
-    progress.info(f"「{keyword}」で10サイトを検索中... 全件取得モードのため3〜5分かかります")
+    progress.info(f"「{keyword}」で{_site_count}サイトを検索中... 全件取得モードのため数分かかります")
     with st.spinner("検索実行中..."):
-        items = run_async_in_thread(aggregate(keyword, exclude_words=exclude_words))
+        sites_arg = selected_sites if selected_sites else None
+        items = run_async_in_thread(aggregate(keyword, exclude_words=exclude_words, sites=sites_arg))
     progress.empty()
 
     # メルカリ Apify の上限到達を検知して通知

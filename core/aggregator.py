@@ -96,8 +96,9 @@ def has_excluded_word(item: Item, exclude_words) -> bool:
     return False
 
 
-async def aggregate(keyword: str, exclude_words=None) -> List[Item]:
-    tasks = [run_one(name, fn, keyword) for name, fn in SCRAPERS]
+async def aggregate(keyword: str, exclude_words=None, sites=None) -> List[Item]:
+    selected = SCRAPERS if sites is None else [(n, fn) for n, fn in SCRAPERS if n in sites]
+    tasks = [run_one(name, fn, keyword) for name, fn in selected]
     results = await asyncio.gather(*tasks)
     all_items: List[Item] = []
     for lst in results:

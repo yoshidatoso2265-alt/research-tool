@@ -49,6 +49,10 @@ async def search(keyword: str) -> List[Item]:
                 if img_el and img_el.get("alt"):
                     title = img_el.get("alt") if len(img_el.get("alt", "")) > len(title) else title
                 desc = desc_el.get_text(" ", strip=True) if desc_el else None
+                # 「お問い合わせ受付は終了しました」の商品はスキップ
+                full_text = li.get_text(" ", strip=True)
+                if "お問い合わせ受付は終了" in full_text:
+                    continue
                 # 都道府県・市区町村
                 loc_parts = []
                 for sec in li.select("div.p-item-secondary-important a, div.p-item-supplementary-info a"):
