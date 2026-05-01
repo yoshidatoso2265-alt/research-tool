@@ -6,7 +6,7 @@ from core.models import Item
 from scrapers import (
     surugaya, yahoo_auctions, hardoff_netmall, jmty,
     second_street, bookoff_online,
-    mercari, rakuma, paypay_furima,
+    mercari, rakuma, paypay_furima, kitamura,
 )
 
 SCRAPERS = [
@@ -19,6 +19,7 @@ SCRAPERS = [
     ("メルカリ", mercari.search),
     ("ラクマ", rakuma.search),
     ("PayPayフリマ", paypay_furima.search),
+    ("キタムラ", kitamura.search),
 ]
 
 

@@ -53,7 +53,7 @@ from core.history import save_history, list_history, load_history
 
 _ICON_PATH = Path(__file__).parent / "77fb3257-fbd1-42b8-adf9-94b19e8812fe.png"
 st.set_page_config(
-    page_title="中古10サイト横断リサーチ",
+    page_title="中古11サイト横断リサーチ",
     layout="wide",
     page_icon=str(_ICON_PATH) if _ICON_PATH.exists() else "🔎",
 )
@@ -85,6 +85,7 @@ SHIPPING_SIZES = [60, 80, 100, 120, 140, 160, 170, 180, 200]
 ALL_SITES = [
     "ヤフオク", "ハードオフ", "ジモティー", "セカンドストリート",
     "駿河屋", "ブックオフ", "メルカリ", "ラクマ", "PayPayフリマ",
+    "キタムラ",
 ]
 
 with st.sidebar:
